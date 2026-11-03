@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quantum Shift Cipher</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    h1 { color: #333; margin-bottom: 8px; }
+    .subtitle { color: #888; margin-bottom: 24px; font-size: 0.9rem; }
+
+    label {
+      display: block;
+      font-weight: 600;
+      color: #444;
+      margin: 12px 0 6px;
+    }
+
+    textarea, input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    textarea:focus, input:focus {
+      border-color: #667eea;
+      outline: none;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+
+    /* Masked key field */
+    .key-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .key-wrap input {
+      padding-right: 48px;
+    }
+    .toggle-btn {
+      position: absolute;
+      right: 6px;
+      background: transparent;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 6px 10px;
+      line-height: 1;
+      color: #888;
+      width: auto;
+      flex: none;
+    }
+    .toggle-btn:hover {
+      color: #667eea;
+      opacity: 1;
+    }
+
+    /* Buttons */
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    button {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    button:active { transform: scale(0.98); }
+    button:hover { opacity: 0.9; }
+    .enc-btn { background: #667eea; color: white; }
+    .dec-btn { background: #764ba2; color: white; }
+
+    .output { margin-top: 20px; }
+    .error {
+      color: #e74c3c;
+      font-weight: 600;
+      margin-top: 12px;
+    }
+    .footer {
+      margin-top: 24px;
+      text-align: center;
+      color: #aaa;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔐 Quantum Shift Cipher</h1>
+    <p class="subtitle">Custom encryption — XOR + rotation + position shift</p>
+
+    <label for="text">Text</label>
+    <textarea id="text" placeholder="Enter text to encrypt or ciphertext to decrypt..."></textarea>
+
+    <label for="key">Secret Key</label>
+    <div class="key-wrap">
+      <input
+        id="key"
+        type="password"
+        placeholder="Enter your secret key..."
+        autocomplete="new-password"
+        spellcheck="false"
+      />
+      <button
+        type="button"
+        class="toggle-btn"
+        id="toggleBtn"
+        onclick="toggleKey()"
+        aria-label="Show key"
+      >👁️</button>
+    </div>
+
+    <div class="buttons">
+      <button class="enc-btn" onclick="run('encrypt')">Encrypt</button>
+      <button class="dec-btn" onclick="run('decrypt')">Decrypt</button>
+    </div>
+
+    <div class="output">
+      <label for="result">Result</label>
+      <textarea id="result" readonly></textarea>
+    </div>
+    <div id="error" class="error"></div>
+
+    <p class="footer">API: POST /api/encrypt · POST /api/decrypt</p>
+  </div>
+
+  <script>
+    // ---- Masked key toggle ----
+    function toggleKey() {
+      const keyEl = document.getElementById('key');
+      const btn = document.getElementById('toggleBtn');
+
+      if (keyEl.type === 'password') {
+        keyEl.type = 'text';
+        btn.textContent = '🙈';
+        btn.setAttribute('aria-label', 'Hide key');
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+          if (keyEl.type === 'text') toggleKey();
+        }, 3000);
+      } else {
+        keyEl.type = 'password';
+        btn.textContent = '👁️';
+        btn.setAttribute('aria-label', 'Show key');
+      }
+    }
+
+    // ---- Block copy/paste/right-click on key field ----
+    const keyInput = document.getElementById('key');
+    keyInput.addEventListener('paste', e => e.preventDefault());
+    keyInput.addEventListener('copy', e => e.preventDefault());
+    keyInput.addEventListener('cut', e => e.preventDefault());
+    keyInput.addEventListener('contextmenu', e => e.preventDefault());
+
+    // ---- Encrypt / Decrypt ----
+    async function run(action) {
+      const text = document.getElementById('text').value;
+      const key = document.getElementById('key').value;
+      const resultEl = document.getElementById('result');
+      const errorEl = document.getElementById('error');
+
+      resultEl.value = '';
+      errorEl.textContent = '';
+
+      if (!text || !key) {
+        errorEl.textContent = 'Please enter both text and key.';
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/${action}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, key })
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          errorEl.textContent = data.error;
+        } else {
+          resultEl.value = data.result;
+        }
+      } catch (e) {
+        errorEl.textContent = 'Request failed: ' + e.message;
+      }
+    }
+  </script>
+</body>
+        </html>
